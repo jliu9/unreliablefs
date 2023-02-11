@@ -11,6 +11,7 @@
 #include <sys/types.h>
 #include <sys/queue.h>
 
+#include "refuse.h"
 #include "conf.h"
 #include "unreliablefs.h"
 #include "unreliablefs_errinj.h"
@@ -159,6 +160,7 @@ static int op_random_errno(int op_n)
 
 static int rand_range(int min_n, int max_n)
 {
+    TestCompiler(min_n);
     return rand() % (max_n - min_n + 1) + min_n;
 }
 

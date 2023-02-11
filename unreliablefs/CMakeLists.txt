@@ -1,11 +1,13 @@
-cmake_minimum_required(VERSION 3.10.2)
+cmake_minimum_required(VERSION 3.15)
 
 include(CheckFunctionExists)
+set(CMAKE_CXX_STANDARD 20)
 
 set(UNRELIABLEFS_SRC conf.c
                      unreliablefs.c
                      unreliablefs_errinj.c
-                     unreliablefs_ops.c)
+                     unreliablefs_ops.c
+                     refuse.cc)
 
 find_package(FUSE 2.9 REQUIRED)
 
@@ -15,7 +17,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${FUSE_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} ${FUSE_LIBRARIES})
 
 target_compile_options(${PROJECT_NAME} PUBLIC -D_FILE_OFFSET_BITS=64 -Wall -Wextra -Wno-unused-parameter)
-target_compile_options(${PROJECT_NAME} PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-std=c++11 -D_FILE_OFFSET_BITS=64>)
+#target_compile_options(${PROJECT_NAME} PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-std=c++11 -D_FILE_OFFSET_BITS=64>)
 
 check_function_exists(fallocate HAVE_FALLOCATE)
 check_function_exists(fallocate HAVE_FLOCK)
