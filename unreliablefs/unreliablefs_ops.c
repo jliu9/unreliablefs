@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include <sys/ioctl.h>
 #include <sys/file.h>
@@ -71,6 +72,40 @@ const char *fuse_op_name[] = {
 };
 
 extern int error_inject(const char* path, fuse_op operation);
+
+
+// target fname relative to the "ROOT" of the point where the FS is mounted
+static const char* g_target_fname = "/pg_sql/data/base/pgsql_tmp/pgsql_tmp";
+static char g_env_refuse_root[1024];
+static char g_env_target_full_path[1024];
+static int g_env_inited = 0;
+
+void init_refuse(void) {
+    fprintf(stdout, "inited?:%d\n", g_env_inited);
+    if (g_env_inited) {
+        return;
+    }
+    char *env_refuse_root = getenv("REFUSE_FS_ROOT");
+    if (env_refuse_root == NULL) {
+        fprintf(stderr, "Please set the env REFUSE_FS_ROOT\n");
+    } else {
+        strcpy(g_env_refuse_root, env_refuse_root);
+        strcpy(g_env_target_full_path, env_refuse_root);
+        int env_len = strlen(g_env_refuse_root);
+        strcpy(g_env_target_full_path + env_len, g_target_fname);
+        fprintf(stdout, "ENV inited to:%s len:%ld\n",
+                g_env_target_full_path,
+                strlen(g_env_target_full_path));
+    }
+    g_env_inited = 1;
+}
+
+int check_refuse_inject_target_path(const char *path) {
+    init_refuse();
+    return (strlen(path) > strlen(g_env_target_full_path) &&
+            strncmp(path, g_env_target_full_path, strlen(g_env_target_full_path)) == 0);
+}
+
 
 int unreliable_lstat(const char *path, struct stat *buf)
 {
@@ -297,6 +332,7 @@ int unreliable_truncate(const char *path, off_t length)
 int unreliable_open(const char *path, struct fuse_file_info *fi)
 {
     int ret = error_inject(path, OP_OPEN);
+    init_refuse();
     if (ret == -ERRNO_NOOP) {
         return 0;
     } else if (ret) {
@@ -316,6 +352,7 @@ int unreliable_read(const char *path, char *buf, size_t size, off_t offset,
                     struct fuse_file_info *fi)
 {
     int ret = error_inject(path, OP_READ);
+    init_refuse();
     if (ret == -ERRNO_NOOP) {
         return 0;
     } else if (ret) {
@@ -332,6 +369,15 @@ int unreliable_read(const char *path, char *buf, size_t size, off_t offset,
 
     if (fd == -1) {
 	return -errno;
+    }
+
+    if (check_refuse_inject_target_path(path)) {
+        const char *op_name = "pread";
+        if (offset == 55771136) {
+            fprintf(stdout, "INJECT path:%s op:%s\n", path, op_name);
+            return -errno;
+        }
+        fprintf(stdout, "path:%s op:%s offset:%lu\n", path, op_name, offset);
     }
 
     ret = pread(fd, buf, size, offset);
@@ -366,6 +412,15 @@ int unreliable_write(const char *path, const char *buf, size_t size,
 
     if (fd == -1) {
 	return -errno;
+    }
+
+    if (check_refuse_inject_target_path(path)) {
+        const char *op_name = "pwrite";
+        if (offset == 55771136 || offset > 70206656) {
+            fprintf(stdout, "INJECT path:%s op:%s -errno:%d\n", path, op_name, (-errno));
+            return -errno;
+        }
+        fprintf(stdout, "path:%s op:%s offset:%ld\n", path, op_name, offset);
     }
 
     ret = pwrite(fd, buf, size, offset);
@@ -545,6 +600,7 @@ int unreliable_removexattr(const char *path, const char *name)
 
 int unreliable_opendir(const char *path, struct fuse_file_info *fi)
 {
+    init_refuse();
     int ret = error_inject(path, OP_OPENDIR);
     if (ret == -ERRNO_NOOP) {
         return 0;
