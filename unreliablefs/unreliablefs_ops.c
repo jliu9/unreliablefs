@@ -79,9 +79,10 @@ static const char* g_target_fname = "/pg_sql/data/base/pgsql_tmp/pgsql_tmp";
 static char g_env_refuse_root[1024];
 static char g_env_target_full_path[1024];
 static int g_env_inited = 0;
+static int g_error_injected = 0;
 
 void init_refuse(void) {
-    fprintf(stdout, "inited?:%d\n", g_env_inited);
+    // fprintf(stdout, "inited?:%d\n", g_env_inited);
     if (g_env_inited) {
         return;
     }
@@ -373,9 +374,13 @@ int unreliable_read(const char *path, char *buf, size_t size, off_t offset,
 
     if (check_refuse_inject_target_path(path)) {
         const char *op_name = "pread";
-        if (offset == 55771136) {
-            fprintf(stdout, "INJECT path:%s op:%s\n", path, op_name);
-            return -errno;
+        if (offset >= 75771136) {
+            if (g_error_injected < 1) {
+               fprintf(stdout, "INJECT path:%s op:%s -errno:%d\n", path, op_name, (-errno));
+               fprintf(stderr, "INJECT path:%s op:%s -errno:%d\n", path, op_name, (-errno));
+               g_error_injected += 1;
+               return -errno;
+            }
         }
         fprintf(stdout, "path:%s op:%s offset:%lu\n", path, op_name, offset);
     }
@@ -417,8 +422,12 @@ int unreliable_write(const char *path, const char *buf, size_t size,
     if (check_refuse_inject_target_path(path)) {
         const char *op_name = "pwrite";
         if (offset == 55771136 || offset > 70206656) {
-            fprintf(stdout, "INJECT path:%s op:%s -errno:%d\n", path, op_name, (-errno));
-            return -errno;
+            if (g_error_injected < 1) {
+               fprintf(stdout, "INJECT path:%s op:%s -errno:%d\n", path, op_name, (-errno));
+               fprintf(stderr, "INJECT path:%s op:%s -errno:%d\n", path, op_name, (-errno));
+               g_error_injected += 1;
+               return -errno;
+            }
         }
         fprintf(stdout, "path:%s op:%s offset:%ld\n", path, op_name, offset);
     }
